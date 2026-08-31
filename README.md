@@ -6,7 +6,7 @@ A local reference implementation for governing discovery and invocation of state
 
 ## Status
 
-Phase 1 in progress: deterministic principals and equipment fixtures load and validate locally.
+Phase 1 in progress: deterministic fixtures and the two downstream MCP servers work locally. The authorization gateway is the next slice.
 
 ## MVP
 
@@ -63,6 +63,15 @@ make test-container
 ```
 
 `make test-container` builds and runs the full suite in Podman without using the host Python environment.
+
+The image contains two stdio MCP servers:
+
+```bash
+python -m mcp_control_plane.telemetry_server
+python -m mcp_control_plane.maintenance_server
+```
+
+They expose exactly three tools: `read_equipment_status`, `list_active_alarms`, and `create_maintenance_ticket`. These downstream servers intentionally do not enforce access policy; the gateway will own that boundary.
 
 ## Final verification target
 
