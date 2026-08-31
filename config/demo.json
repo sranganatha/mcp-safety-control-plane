@@ -2,11 +2,13 @@
   "principals": [
     {
       "id": "eng-a",
+      "api_key": "demo-eng-key",
       "role": "engineer",
       "assigned_site": "site-a"
     },
     {
       "id": "sup-a",
+      "api_key": "demo-sup-key",
       "role": "supervisor",
       "assigned_site": "site-a"
     }

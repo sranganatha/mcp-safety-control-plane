@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +16,7 @@ class ConfigError(ValueError):
 @dataclass(frozen=True)
 class Principal:
     id: str
+    api_key: str = field(repr=False)
     role: str
     assigned_site: str
 
@@ -52,6 +53,7 @@ def parse_config(raw: dict[str, Any]) -> DemoConfig:
         principals = {
             item_id: Principal(
                 id=item_id,
+                api_key=row["api_key"],
                 role=row["role"],
                 assigned_site=row["assigned_site"],
             )
@@ -74,6 +76,10 @@ def parse_config(raw: dict[str, Any]) -> DemoConfig:
     invalid_roles = sorted({principal.role for principal in principals.values()} - {"engineer", "supervisor"})
     if invalid_roles:
         raise ConfigError(f"unsupported roles: {', '.join(invalid_roles)}")
+
+    api_keys = [principal.api_key for principal in principals.values()]
+    if len(api_keys) != len(set(api_keys)):
+        raise ConfigError("duplicate principal api_key")
 
     return DemoConfig(principals=principals, equipment=equipment)
 
