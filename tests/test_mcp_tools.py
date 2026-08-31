@@ -1,8 +1,13 @@
+import os
 import unittest
+from contextlib import closing
+from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 from mcp import Client
 
-from mcp_control_plane.maintenance_server import _tickets, mcp as maintenance_mcp
+from mcp_control_plane.maintenance_server import mcp as maintenance_mcp
+from mcp_control_plane.storage import connect_database
 from mcp_control_plane.telemetry_server import mcp as telemetry_mcp
 
 
@@ -38,7 +43,16 @@ class TelemetryToolsTest(unittest.IsolatedAsyncioTestCase):
 
 class MaintenanceToolsTest(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        _tickets.clear()
+        self.temporary_directory = TemporaryDirectory()
+        self.environment = patch.dict(
+            os.environ,
+            {"MCP_DB_PATH": f"{self.temporary_directory.name}/test.db"},
+        )
+        self.environment.start()
+
+    def tearDown(self):
+        self.environment.stop()
+        self.temporary_directory.cleanup()
 
     async def test_ticket_creation_is_idempotent_over_mcp(self):
         arguments = {
@@ -54,7 +68,8 @@ class MaintenanceToolsTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(["create_maintenance_ticket"], [tool.name for tool in tools])
         self.assertEqual("maint-001", first.structured_content["ticket_id"])
         self.assertEqual(first.structured_content, replay.structured_content)
-        self.assertEqual(1, len(_tickets))
+        with closing(connect_database()) as database:
+            self.assertEqual(1, database.execute("SELECT COUNT(*) FROM tickets").fetchone()[0])
 
     async def test_idempotency_key_cannot_change_request(self):
         async with Client(maintenance_mcp, raise_exceptions=True) as client:

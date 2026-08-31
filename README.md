@@ -6,7 +6,7 @@ A local reference implementation for governing discovery and invocation of state
 
 ## Status
 
-Phase 1 in progress: deterministic fixtures, downstream MCP servers, development-key identity, filtered discovery, and site-authorized invocation work locally. Exact one-time approval is the next slice.
+Phase 1 in progress: deterministic fixtures, downstream MCP servers, identity, filtered discovery, site authorization, and exact one-time SQLite approvals work locally. The audit hash chain is the next slice.
 
 ## MVP
 
