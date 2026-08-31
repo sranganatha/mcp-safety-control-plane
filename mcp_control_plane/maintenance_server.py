@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import os
+import sqlite3
+from contextlib import closing
 from typing import TypedDict
 
 from mcp.server import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 
 from mcp_control_plane.config import load_config
+from mcp_control_plane.storage import connect_database
 
 
 mcp = MCPServer("equipment-maintenance")
@@ -21,7 +24,37 @@ class MaintenanceTicket(TypedDict):
     status: str
 
 
-_tickets: dict[str, MaintenanceTicket] = {}
+def create_ticket(
+    database: sqlite3.Connection,
+    equipment_id: str,
+    reason: str,
+    idempotency_key: str,
+) -> MaintenanceTicket:
+    existing = database.execute(
+        "SELECT id, equipment_id, reason, status FROM tickets WHERE idempotency_key = ?",
+        (idempotency_key,),
+    ).fetchone()
+    if existing:
+        ticket_id, saved_equipment, saved_reason, status = existing
+        if (equipment_id, reason) != (saved_equipment, saved_reason):
+            raise ToolError("idempotency_key was already used for a different request")
+        return {
+            "ticket_id": f"maint-{ticket_id:03d}",
+            "equipment_id": saved_equipment,
+            "reason": saved_reason,
+            "status": status,
+        }
+
+    cursor = database.execute(
+        "INSERT INTO tickets (idempotency_key, equipment_id, reason, status) VALUES (?, ?, ?, 'open')",
+        (idempotency_key, equipment_id, reason),
+    )
+    return {
+        "ticket_id": f"maint-{cursor.lastrowid:03d}",
+        "equipment_id": equipment_id,
+        "reason": reason,
+        "status": "open",
+    }
 
 
 @mcp.tool()
@@ -39,20 +72,8 @@ def create_maintenance_ticket(
     if not idempotency_key.strip():
         raise ToolError("idempotency_key must not be blank")
 
-    existing = _tickets.get(idempotency_key)
-    request = {"equipment_id": equipment_id, "reason": reason}
-    if existing:
-        if request != {key: existing[key] for key in request}:
-            raise ToolError("idempotency_key was already used for a different request")
-        return existing
-
-    ticket = {
-        "ticket_id": f"maint-{len(_tickets) + 1:03d}",
-        **request,
-        "status": "open",
-    }
-    _tickets[idempotency_key] = ticket
-    return ticket
+    with closing(connect_database()) as database, database:
+        return create_ticket(database, equipment_id, reason, idempotency_key)
 
 
 if __name__ == "__main__":

@@ -8,7 +8,6 @@ from mcp_control_plane.gateway import (
     discover_tools,
     invoke_tool,
 )
-from mcp_control_plane.maintenance_server import _tickets
 
 
 class FilteredDiscoveryTest(unittest.TestCase):
@@ -117,17 +116,18 @@ class InvocationAuthorizationTest(unittest.TestCase):
         self.assertEqual("TOOL_NOT_AUTHORIZED", caught.exception.code)
 
     def test_engineer_write_requires_approval_without_creating_ticket(self) -> None:
-        _tickets.clear()
-        self.assert_denied(
-            "APPROVAL_REQUIRED",
-            "create_maintenance_ticket",
-            {
-                "equipment_id": "etch-101",
-                "reason": "Inspect alarm",
-                "idempotency_key": "request-1",
-            },
-        )
-        self.assertEqual({}, _tickets)
+        downstream = Mock()
+        with patch("mcp_control_plane.gateway.WRITE_TOOL", downstream):
+            self.assert_denied(
+                "APPROVAL_REQUIRED",
+                "create_maintenance_ticket",
+                {
+                    "equipment_id": "etch-101",
+                    "reason": "Inspect alarm",
+                    "idempotency_key": "request-1",
+                },
+            )
+        downstream.assert_not_called()
 
     def test_downstream_failure_has_stable_reason(self) -> None:
         downstream = Mock(side_effect=RuntimeError("internal detail"))
