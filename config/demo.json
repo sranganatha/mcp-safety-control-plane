@@ -1,0 +1,28 @@
+{
+  "principals": [
+    {
+      "id": "eng-a",
+      "role": "engineer",
+      "assigned_site": "site-a"
+    },
+    {
+      "id": "sup-a",
+      "role": "supervisor",
+      "assigned_site": "site-a"
+    }
+  ],
+  "equipment": [
+    {
+      "id": "etch-101",
+      "site": "site-a",
+      "temperature_c": 84.5,
+      "alarms": ["TEMP_HIGH"]
+    },
+    {
+      "id": "etch-201",
+      "site": "site-b",
+      "temperature_c": 71.0,
+      "alarms": []
+    }
+  ]
+}
