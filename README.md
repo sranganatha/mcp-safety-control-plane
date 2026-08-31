@@ -6,7 +6,7 @@ A local reference implementation for governing discovery and invocation of state
 
 ## Status
 
-Planning complete; implementation not started.
+Phase 1 in progress: deterministic principals and equipment fixtures load and validate locally.
 
 ## MVP
 
@@ -54,7 +54,17 @@ The demo is complete when it proves:
 - Real equipment control
 - Production or compliance claims
 
-## Local verification target
+## Local development
+
+Clean-room validation requires Podman only:
+
+```bash
+make test-container
+```
+
+`make test-container` builds and runs the full suite in Podman without using the host Python environment.
+
+## Final verification target
 
 The finished repository will support a clean-checkout workflow equivalent to:
 
@@ -64,7 +74,7 @@ make demo
 make test
 ```
 
-These commands are targets, not yet implemented.
+Docker Compose and `make demo` are not implemented yet.
 
 ## Development
 
@@ -76,4 +86,3 @@ Architecture, threat-model, and productionization documents will be added only w
 ## AI-assisted development
 
 AI tools may assist with planning, implementation, tests, documentation, and review. Architecture, security boundaries, acceptance criteria, result interpretation, and merge approval remain human-owned.
-

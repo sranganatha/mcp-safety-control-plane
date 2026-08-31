@@ -43,9 +43,10 @@ Before completing a change:
 
 1. Run formatting and static checks once configured.
 2. Run the smallest relevant test, then the full suite.
-3. Confirm denied requests never call the downstream fixture.
-4. Update the MVP specification only when behavior intentionally changes.
-5. Keep README commands truthful; do not document commands that do not work.
+3. Run `make test-container` before opening or merging a pull request.
+4. Confirm denied requests never call the downstream fixture.
+5. Update the MVP specification only when behavior intentionally changes.
+6. Keep README commands truthful; do not document commands that do not work.
 
 Every non-trivial security rule needs one runnable test that fails if the rule is removed.
 
@@ -65,4 +66,3 @@ Do not merge autonomously. Do not combine unrelated phases in one change.
 ## Definition of done
 
 The MVP is done when all scenarios in `docs/mvp-spec.md` pass locally from a clean checkout and the scripted demo finishes in under three minutes.
-
