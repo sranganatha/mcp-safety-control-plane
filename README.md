@@ -6,7 +6,7 @@ A local reference implementation for governing discovery and invocation of state
 
 ## Status
 
-Phase 1 in progress: deterministic fixtures, downstream MCP servers, identity, filtered discovery, site authorization, and exact one-time SQLite approvals work locally. The audit hash chain is the next slice.
+Phase 1 in progress: deterministic fixtures, downstream MCP servers, identity, filtered discovery, site authorization, exact one-time SQLite approvals, and a tamper-evident audit hash chain work locally. Scripted security scenarios are the next slice.
 
 ## MVP
 
@@ -89,6 +89,7 @@ Docker Compose and `make demo` are not implemented yet.
 
 - [MVP specification](docs/mvp-spec.md)
 - [Repository rules](AGENTS.md)
+- [Audit hash-chain decision](docs/adr/0001-audit-hash-chain.md)
 
 Architecture, threat-model, and productionization documents will be added only when implementation creates concrete decisions to record.
 
