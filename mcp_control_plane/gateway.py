@@ -12,7 +12,7 @@ from typing import Callable
 
 from mcp_control_plane.config import DemoConfig, Principal
 from mcp_control_plane.maintenance_server import create_ticket
-from mcp_control_plane.storage import connect_database
+from mcp_control_plane.storage import connect_database, record_audit
 from mcp_control_plane.telemetry_server import (
     list_active_alarms,
     read_equipment_status,
@@ -56,9 +56,24 @@ def resolve_principal(config: DemoConfig, api_key: str | None) -> Principal:
     raise ControlPlaneError("IDENTITY_INVALID")
 
 
-def discover_tools(config: DemoConfig, api_key: str | None) -> tuple[str, ...]:
-    principal = resolve_principal(config, api_key)
-    return TOOLS_BY_ROLE[principal.role]
+def discover_tools(
+    config: DemoConfig,
+    api_key: str | None,
+    database: sqlite3.Connection | None = None,
+) -> tuple[str, ...]:
+    if database is None:
+        with closing(connect_database()) as opened:
+            return discover_tools(config, api_key, opened)
+
+    principal = None
+    try:
+        principal = resolve_principal(config, api_key)
+        tools = TOOLS_BY_ROLE[principal.role]
+    except ControlPlaneError as error:
+        record_audit(database, "discovery", None, None, "deny", error.code)
+        raise
+    record_audit(database, "discovery", principal.id, None, "allow", "AUTHORIZED")
+    return tools
 
 
 def _validate_arguments(tool_name: str, arguments: object) -> dict[str, str]:
@@ -183,23 +198,31 @@ def invoke_tool(
     approval_id: str | None = None,
     database: sqlite3.Connection | None = None,
 ) -> dict:
-    principal = resolve_principal(config, api_key)
-    validated, equipment = _authorize_request(config, principal, tool_name, arguments)
-    if tool_name == "create_maintenance_ticket":
-        if not approval_id:
-            raise ControlPlaneError("APPROVAL_REQUIRED")
-        if not isinstance(approval_id, str):
-            raise ControlPlaneError("APPROVAL_MISMATCH")
-        if database is not None:
-            return _invoke_approved_write(
+    if database is None:
+        with closing(connect_database()) as opened:
+            return invoke_tool(config, api_key, tool_name, arguments, approval_id, opened)
+
+    principal = None
+    audit_tool = tool_name if isinstance(tool_name, str) else None
+    try:
+        principal = resolve_principal(config, api_key)
+        validated, equipment = _authorize_request(config, principal, tool_name, arguments)
+        if tool_name == "create_maintenance_ticket":
+            if not approval_id:
+                raise ControlPlaneError("APPROVAL_REQUIRED")
+            if not isinstance(approval_id, str):
+                raise ControlPlaneError("APPROVAL_MISMATCH")
+            result = _invoke_approved_write(
                 database, principal, tool_name, validated, equipment.site, approval_id
             )
-        with closing(connect_database()) as opened:
-            return _invoke_approved_write(
-                opened, principal, tool_name, validated, equipment.site, approval_id
-            )
-
-    try:
-        return READ_TOOLS[tool_name](**validated)
-    except Exception as error:
-        raise ControlPlaneError("DOWNSTREAM_FAILURE") from error
+        else:
+            try:
+                result = READ_TOOLS[tool_name](**validated)
+            except Exception as error:
+                raise ControlPlaneError("DOWNSTREAM_FAILURE") from error
+    except ControlPlaneError as error:
+        principal_id = principal.id if principal else None
+        record_audit(database, "invocation", principal_id, audit_tool, "deny", error.code)
+        raise
+    record_audit(database, "invocation", principal.id, audit_tool, "allow", "AUTHORIZED")
+    return result
