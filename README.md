@@ -2,15 +2,11 @@
 
 [![CI](https://github.com/sranganatha/mcp-safety-control-plane/actions/workflows/ci.yml/badge.svg)](https://github.com/sranganatha/mcp-safety-control-plane/actions/workflows/ci.yml)
 
-A local reference implementation for governing discovery and invocation of state-changing MCP tools in simulated engineering workflows.
+A local reference implementation for governing high-risk MCP tool calls, demonstrated through a simulated industrial maintenance workflow.
 
 > Prompts are not an authorization boundary. Tool access must be enforced during both discovery and invocation.
 
-## Status
-
-The local MVP is complete: its demo and end-to-end test exercise an MCP client, the governed MCP gateway, and downstream MCP servers across stdio process boundaries.
-
-## MVP
+## How it works
 
 One engineer interacts with two simulated equipment sites through an MCP gateway:
 
@@ -27,88 +23,65 @@ Control plane
 Telemetry and maintenance MCP servers
 ```
 
-The demo is complete when it proves:
+The telemetry server represents read-only equipment status and active-alarm queries. The maintenance server represents a controlled workflow that creates maintenance tickets. These are realistic industrial boundaries, but the project does not implement or claim SECS/GEM support.
 
-1. An engineer sees only authorized tools.
-2. Reading assigned-site equipment succeeds.
-3. Reading another site's equipment is denied.
-4. Creating a maintenance ticket without approval is denied.
-5. A supervisor approves the exact request once; the ticket is created and replay is denied.
+The gateway exposes `read_equipment_status`, `list_active_alarms`, and `create_maintenance_ticket`. Discovery is filtered by role, but every invocation independently rechecks identity, role, exact arguments, and equipment ownership before reaching a downstream MCP server.
 
-## Deliberately small
+## Exact request approval
 
-- Two roles: engineer and supervisor
-- Two sites
-- Two downstream MCP servers
-- Three tools
-- One local JSON fixture file
-- One SQLite database
-- One command-line demo
-- No paid model or cloud account
+The central design contribution is an approval bound to the complete intended action: requesting principal, tool name, canonical argument hash, equipment site, approver role, expiry, and unused state.
 
-## Not in the MVP
+Arguments are serialized as sorted-key JSON with stable separators before hashing. Equivalent requests therefore have the same identity regardless of key order, while changing the equipment, reason, or idempotency key invalidates the approval. Approval is consumed only after the downstream write succeeds, so a transient downstream failure does not destroy authorization for an action that never completed.
 
-- Browser UI
-- LLM orchestration
-- OAuth, OIDC, or SSO
-- Kubernetes
-- Multi-tenancy
-- Real equipment control
-- Production or compliance claims
+Supervisor approval is a trusted, out-of-band control-plane operation and is intentionally not exposed as an MCP tool. An LLM can request an action, but it cannot approve its own request.
+
+## Security invariants
+
+| Threat | Enforcement point | Runnable evidence |
+|---|---|---|
+| Hidden-tool invocation | Invocation role policy, independent of discovery | `test_supervisor_cannot_directly_invoke_hidden_write` |
+| Cross-site access | Trusted server-side equipment ownership check before dispatch | `test_denied_mcp_call_does_not_cross_downstream_boundary` |
+| Approval argument modification | Canonical argument-hash comparison | `test_modified_arguments_cannot_use_existing_approval` |
+| Approval replay | One-time approval consumption check | `test_approved_write_succeeds_once_through_gateway` |
+| Downstream failure | Approval consumed only after successful write | `test_downstream_failure_leaves_approval_unused` |
+| Audit modification | Stored hash-chain verification | `test_changed_event_fails_verification` |
+
+## Transferable patterns
+
+The equipment scenario is one concrete example of a general authorization pattern for high-risk agent actions, including:
+
+- Financial transactions
+- Infrastructure changes
+- Healthcare workflows
+- Customer-data access
+- Communications and publishing
+- Administrative operations
+
+## Scope
+
+This local MVP uses deterministic fixtures, three tools, two downstream MCP servers, and SQLite-backed approvals, tickets, and audit events. It is not a general-purpose MCP proxy, OAuth platform, production gateway, real equipment controller, or compliance-certified system.
 
 ## Local development
 
 Clean-room validation requires Podman only:
 
 ```bash
-# Windows/macOS only, when the VM is stopped:
-podman machine start
 podman info
 make test-container
 podman compose up --build
 ```
 
-`make test-container` builds and runs the full suite in Podman without using the host Python environment.
-The Compose command builds the same image and runs the end-to-end demo without persisting its SQLite database.
-On Windows and macOS, the Podman machine must exist and be running first. A “matching machine” or socket connection error is a local Podman connection problem; `podman info` must succeed before either repository command can run.
-
-The image contains one governed gateway and two downstream stdio MCP servers:
-
-```bash
-python -m mcp_control_plane.gateway_server
-python -m mcp_control_plane.telemetry_server
-python -m mcp_control_plane.maintenance_server
-```
-
-The gateway exposes exactly three filtered tools: `read_equipment_status`, `list_active_alarms`, and `create_maintenance_ticket`. It reauthorizes every call, then reaches the downstream servers through MCP stdio clients. The downstream servers intentionally do not enforce access policy; the gateway owns that boundary.
-
-Supervisor approval is a trusted, out-of-band control-plane operation. It is intentionally not exposed as an MCP tool, so an LLM cannot approve its own requested action. The local demo calls the same approval function that a separately authenticated administrative interface would call in production.
+On Windows and macOS, the Podman machine must be running before these commands are used. No host Python installation is required.
 
 ## End-to-end demo
 
-With Python 3.12 and the project installed, the same demo runs directly:
+The demo exits non-zero if any security invariant fails.
 
-```bash
-make demo
-```
+For an installed development environment, it can also be run with `make demo`.
 
-The official, clean-room demo command is:
-
-```bash
-podman compose up --build
-```
-
-It prints exactly seven `PASS` lines covering filtered MCP discovery, assigned-site access through the telemetry MCP server, cross-site denial at the gateway, approval enforcement through the maintenance MCP server, one-time use, and audit-chain verification. Any failed check exits non-zero.
-
-## Development
+## Design references
 
 - [MVP specification](docs/mvp-spec.md)
 - [Repository rules](AGENTS.md)
 - [Audit hash-chain decision](docs/adr/0001-audit-hash-chain.md)
 - [MCP identity and transport decision](docs/adr/0002-mcp-identity-and-transport.md)
-
-Architecture, threat-model, and productionization documents will be added only when implementation creates concrete decisions to record.
-
-## AI-assisted development
-
-AI tools may assist with planning, implementation, tests, documentation, and review. Architecture, security boundaries, acceptance criteria, result interpretation, and merge approval remain human-owned.
