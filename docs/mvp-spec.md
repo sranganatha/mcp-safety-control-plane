@@ -65,6 +65,8 @@ Equipment-to-site ownership is trusted server-side data.
 8. Gateway consumes the approval after successful execution.
 9. Reuse or argument modification is denied.
 
+Supervisor approval is a trusted, out-of-band control-plane operation and is intentionally not exposed as an LLM-callable MCP tool. An administrative CLI or service could wrap this operation later, but neither is required to prove the MVP boundary.
+
 ## 4. Approval contract
 
 An approval is valid only when all values match:
@@ -161,6 +163,6 @@ Do not start a later slice until the current slice has one runnable check.
 The MVP is complete when:
 
 - All acceptance scenarios pass without an LLM or network access.
-- `docker compose up --build`, `make test`, and `make demo` work from a clean checkout.
+- `podman compose up --build`, `make test-container`, and `make demo` work from a clean checkout.
 - The demo completes in under three minutes.
 - The README accurately describes implemented behavior and limitations.

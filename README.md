@@ -1,5 +1,7 @@
 # MCP Safety Control Plane
 
+[![CI](https://github.com/sranganatha/mcp-safety-control-plane/actions/workflows/ci.yml/badge.svg)](https://github.com/sranganatha/mcp-safety-control-plane/actions/workflows/ci.yml)
+
 A local reference implementation for governing discovery and invocation of state-changing MCP tools in simulated engineering workflows.
 
 > Prompts are not an authorization boundary. Tool access must be enforced during both discovery and invocation.
@@ -80,6 +82,8 @@ python -m mcp_control_plane.maintenance_server
 
 The gateway exposes exactly three filtered tools: `read_equipment_status`, `list_active_alarms`, and `create_maintenance_ticket`. It reauthorizes every call, then reaches the downstream servers through MCP stdio clients. The downstream servers intentionally do not enforce access policy; the gateway owns that boundary.
 
+Supervisor approval is a trusted, out-of-band control-plane operation. It is intentionally not exposed as an MCP tool, so an LLM cannot approve its own requested action. The local demo calls the same approval function that a separately authenticated administrative interface would call in production.
+
 ## End-to-end demo
 
 With Python 3.12 and the project installed, the same demo runs directly:
@@ -88,7 +92,13 @@ With Python 3.12 and the project installed, the same demo runs directly:
 make demo
 ```
 
-It prints seven `PASS` lines covering filtered MCP discovery, assigned-site access through the telemetry MCP server, cross-site denial at the gateway, approval enforcement through the maintenance MCP server, one-time use, and audit-chain verification. Any failed check exits non-zero.
+The official, clean-room demo command is:
+
+```bash
+podman compose up --build
+```
+
+It prints exactly seven `PASS` lines covering filtered MCP discovery, assigned-site access through the telemetry MCP server, cross-site denial at the gateway, approval enforcement through the maintenance MCP server, one-time use, and audit-chain verification. Any failed check exits non-zero.
 
 ## Development
 
