@@ -1,0 +1,6 @@
+services:
+  demo:
+    build:
+      context: .
+      dockerfile: Containerfile
+    command: python -m mcp_control_plane.demo
