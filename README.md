@@ -6,7 +6,7 @@ A local reference implementation for governing discovery and invocation of state
 
 ## Status
 
-The governed MCP server and downstream MCP client boundary are implemented. The current scripted demo still exercises the policy API directly; a full MCP-client end-to-end proof is the remaining course-correction slice.
+The local MVP is complete: its demo and end-to-end test exercise an MCP client, the governed MCP gateway, and downstream MCP servers across stdio process boundaries.
 
 ## MVP
 
@@ -59,12 +59,16 @@ The demo is complete when it proves:
 Clean-room validation requires Podman only:
 
 ```bash
+# Windows/macOS only, when the VM is stopped:
+podman machine start
+podman info
 make test-container
 podman compose up --build
 ```
 
 `make test-container` builds and runs the full suite in Podman without using the host Python environment.
 The Compose command builds the same image and runs the end-to-end demo without persisting its SQLite database.
+On Windows and macOS, the Podman machine must exist and be running first. A “matching machine” or socket connection error is a local Podman connection problem; `podman info` must succeed before either repository command can run.
 
 The image contains one governed gateway and two downstream stdio MCP servers:
 
@@ -84,7 +88,7 @@ With Python 3.12 and the project installed, the same demo runs directly:
 make demo
 ```
 
-It prints seven `PASS` lines covering filtered discovery, assigned-site access, cross-site denial, approval enforcement, one-time use, and audit-chain verification. Any failed check exits non-zero.
+It prints seven `PASS` lines covering filtered MCP discovery, assigned-site access through the telemetry MCP server, cross-site denial at the gateway, approval enforcement through the maintenance MCP server, one-time use, and audit-chain verification. Any failed check exits non-zero.
 
 ## Development
 

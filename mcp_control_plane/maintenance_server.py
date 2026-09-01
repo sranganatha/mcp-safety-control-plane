@@ -5,23 +5,16 @@ from __future__ import annotations
 import os
 import sqlite3
 from contextlib import closing
-from typing import TypedDict
 
 from mcp.server import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 
 from mcp_control_plane.config import load_config
+from mcp_control_plane.contracts import MaintenanceTicket
 from mcp_control_plane.storage import connect_database
 
 
 mcp = MCPServer("equipment-maintenance")
-
-
-class MaintenanceTicket(TypedDict):
-    ticket_id: str
-    equipment_id: str
-    reason: str
-    status: str
 
 
 def create_ticket(

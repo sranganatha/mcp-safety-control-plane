@@ -3,18 +3,18 @@
 from __future__ import annotations
 
 import asyncio
-import sqlite3
-from collections.abc import Awaitable, Callable
+import os
+import sys
 from contextlib import closing
+from tempfile import TemporaryDirectory
+
+from mcp import Client, StdioServerParameters
+from mcp_types import CallToolResult
 
 from mcp_control_plane.config import load_config
-from mcp_control_plane.gateway import (
-    ControlPlaneError,
-    approve_request,
-    discover_tools,
-    invoke_tool,
-)
-from mcp_control_plane.storage import initialize_database, verify_audit_chain
+from mcp_control_plane.gateway import approve_request
+from mcp_control_plane.gateway_server import API_KEY_META
+from mcp_control_plane.storage import connect_database, verify_audit_chain
 
 
 def _pass(label: str, condition: bool) -> None:
@@ -23,100 +23,99 @@ def _pass(label: str, condition: bool) -> None:
     print(f"PASS {label}")
 
 
-async def _denied(
-    label: str, code: str, action: Callable[[], Awaitable[object]]
-) -> None:
-    try:
-        await action()
-    except ControlPlaneError as error:
-        _pass(label, error.code == code)
-        return
-    raise RuntimeError(f"demo check failed: {label}")
+def _denied(label: str, code: str, response: CallToolResult) -> None:
+    messages = [part.text for part in response.content if hasattr(part, "text")]
+    _pass(label, response.is_error and any(code in message for message in messages))
 
 
 async def run_demo() -> None:
     config = load_config("config/demo.json")
-    with closing(initialize_database(sqlite3.connect(":memory:"))) as database:
-        tools = discover_tools(config, "demo-eng-key", database)
-        _pass(
-            "engineer sees only permitted tools",
-            tools
-            == (
-                "create_maintenance_ticket",
-                "list_active_alarms",
-                "read_equipment_status",
-            ),
+    identity = {API_KEY_META: "demo-eng-key"}
+    with TemporaryDirectory() as temporary_directory:
+        database_path = f"{temporary_directory}/demo.db"
+        server_environment = {**os.environ, "MCP_DB_PATH": database_path}
+        server = StdioServerParameters(
+            command=sys.executable,
+            args=["-m", "mcp_control_plane.gateway_server"],
+            env=server_environment,
         )
+        with closing(connect_database(database_path)) as database:
+            async with Client(server, raise_exceptions=True, cache=None) as client:
+                tools = await client.list_tools(meta=identity)
+                _pass(
+                    "engineer sees only permitted tools",
+                    sorted(tool.name for tool in tools.tools)
+                    == [
+                        "create_maintenance_ticket",
+                        "list_active_alarms",
+                        "read_equipment_status",
+                    ],
+                )
 
-        status = await invoke_tool(
-            config,
-            "demo-eng-key",
-            "read_equipment_status",
-            {"equipment_id": "etch-101"},
-            database=database,
-        )
-        _pass("assigned-site read succeeds", status["equipment_id"] == "etch-101")
+                status = await client.call_tool(
+                    "read_equipment_status",
+                    {"equipment_id": "etch-101"},
+                    meta=identity,
+                )
+                status_data = status.structured_content or {}
+                _pass(
+                    "assigned-site read succeeds",
+                    not status.is_error
+                    and status_data.get("equipment_id") == "etch-101",
+                )
 
-        await _denied(
-            "cross-site read is denied",
-            "CROSS_SITE_ACCESS",
-            lambda: invoke_tool(
-                config,
-                "demo-eng-key",
-                "read_equipment_status",
-                {"equipment_id": "etch-201"},
-                database=database,
-            ),
-        )
+                cross_site = await client.call_tool(
+                    "read_equipment_status",
+                    {"equipment_id": "etch-201"},
+                    meta=identity,
+                )
+                _denied("cross-site read is denied", "CROSS_SITE_ACCESS", cross_site)
 
-        arguments = {
-            "equipment_id": "etch-101",
-            "idempotency_key": "demo-ticket-1",
-            "reason": "Inspect elevated temperature",
-        }
-        await _denied(
-            "write without approval is denied",
-            "APPROVAL_REQUIRED",
-            lambda: invoke_tool(
-                config,
-                "demo-eng-key",
-                "create_maintenance_ticket",
-                arguments,
-                database=database,
-            ),
-        )
+                arguments = {
+                    "equipment_id": "etch-101",
+                    "idempotency_key": "demo-ticket-1",
+                    "reason": "Inspect elevated temperature",
+                }
+                unapproved = await client.call_tool(
+                    "create_maintenance_ticket", arguments, meta=identity
+                )
+                _denied(
+                    "write without approval is denied",
+                    "APPROVAL_REQUIRED",
+                    unapproved,
+                )
 
-        approval_id = approve_request(
-            database,
-            config,
-            "demo-sup-key",
-            "eng-a",
-            "create_maintenance_ticket",
-            arguments,
-        )
-        ticket = await invoke_tool(
-            config,
-            "demo-eng-key",
-            "create_maintenance_ticket",
-            arguments,
-            approval_id,
-            database,
-        )
-        _pass("exact approved write succeeds", ticket["ticket_id"] == "maint-001")
+                approval_id = approve_request(
+                    database,
+                    config,
+                    "demo-sup-key",
+                    "eng-a",
+                    "create_maintenance_ticket",
+                    arguments,
+                )
+                ticket = await client.call_tool(
+                    "create_maintenance_ticket",
+                    {**arguments, "approval_id": approval_id},
+                    meta=identity,
+                )
+                ticket_data = ticket.structured_content or {}
+                _pass(
+                    "exact approved write succeeds",
+                    not ticket.is_error
+                    and ticket_data.get("ticket_id") == "maint-001",
+                )
 
-        await _denied(
-            "consumed approval cannot be replayed",
-            "APPROVAL_ALREADY_USED",
-            lambda: invoke_tool(
-                config,
-                "demo-eng-key",
-                "create_maintenance_ticket",
-                arguments,
-                approval_id,
-                database,
-            ),
-        )
-        _pass("audit hash chain verifies", verify_audit_chain(database))
+                replay = await client.call_tool(
+                    "create_maintenance_ticket",
+                    {**arguments, "approval_id": approval_id},
+                    meta=identity,
+                )
+                _denied(
+                    "consumed approval cannot be replayed",
+                    "APPROVAL_ALREADY_USED",
+                    replay,
+                )
+            _pass("audit hash chain verifies", verify_audit_chain(database))
 
 
 if __name__ == "__main__":
