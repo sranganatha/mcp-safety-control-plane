@@ -13,6 +13,7 @@ from mcp.shared.exceptions import MCPError
 from mcp_types import INVALID_REQUEST
 
 from mcp_control_plane.config import load_config
+from mcp_control_plane.contracts import AlarmList, EquipmentStatus, MaintenanceTicket
 from mcp_control_plane.gateway import ControlPlaneError, discover_tools, invoke_tool
 
 
@@ -65,7 +66,9 @@ async def _invoke(
 
 
 @mcp.tool()
-async def read_equipment_status(equipment_id: str, context: Context) -> dict:
+async def read_equipment_status(
+    equipment_id: str, context: Context
+) -> EquipmentStatus:
     """Return status when gateway policy permits this equipment read."""
     return await _invoke(
         context, "read_equipment_status", {"equipment_id": equipment_id}
@@ -73,7 +76,7 @@ async def read_equipment_status(equipment_id: str, context: Context) -> dict:
 
 
 @mcp.tool()
-async def list_active_alarms(equipment_id: str, context: Context) -> dict:
+async def list_active_alarms(equipment_id: str, context: Context) -> AlarmList:
     """Return alarms when gateway policy permits this equipment read."""
     return await _invoke(context, "list_active_alarms", {"equipment_id": equipment_id})
 
@@ -85,7 +88,7 @@ async def create_maintenance_ticket(
     idempotency_key: str,
     context: Context,
     approval_id: str | None = None,
-) -> dict:
+) -> MaintenanceTicket:
     """Create a ticket when gateway policy and exact approval permit it."""
     return await _invoke(
         context,
