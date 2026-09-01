@@ -6,7 +6,7 @@ A local reference implementation for governing discovery and invocation of state
 
 ## Status
 
-Phase 1 in progress: deterministic fixtures, downstream MCP servers, identity, filtered discovery, site authorization, exact one-time SQLite approvals, and a tamper-evident audit hash chain work locally. Scripted security scenarios are the next slice.
+The local MVP is implemented: deterministic fixtures, downstream MCP servers, identity, filtered discovery, site authorization, exact one-time SQLite approvals, tamper-evident audit events, and a scripted security demo.
 
 ## MVP
 
@@ -39,7 +39,7 @@ The demo is complete when it proves:
 - Two sites
 - Two downstream MCP servers
 - Three tools
-- One YAML policy file
+- One local JSON fixture file
 - One SQLite database
 - One command-line demo
 - No paid model or cloud account
@@ -60,9 +60,11 @@ Clean-room validation requires Podman only:
 
 ```bash
 make test-container
+podman compose up --build
 ```
 
 `make test-container` builds and runs the full suite in Podman without using the host Python environment.
+The Compose command builds the same image and runs the end-to-end demo without persisting its SQLite database.
 
 The image contains two stdio MCP servers:
 
@@ -73,17 +75,15 @@ python -m mcp_control_plane.maintenance_server
 
 They expose exactly three tools: `read_equipment_status`, `list_active_alarms`, and `create_maintenance_ticket`. These downstream servers intentionally do not enforce access policy; the gateway will own that boundary.
 
-## Final verification target
+## End-to-end demo
 
-The finished repository will support a clean-checkout workflow equivalent to:
+With Python 3.12 and the project installed, the same demo runs directly:
 
 ```bash
-docker compose up --build
 make demo
-make test
 ```
 
-Docker Compose and `make demo` are not implemented yet.
+It prints seven `PASS` lines covering filtered discovery, assigned-site access, cross-site denial, approval enforcement, one-time use, and audit-chain verification. Any failed check exits non-zero.
 
 ## Development
 

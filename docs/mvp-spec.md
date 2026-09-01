@@ -113,34 +113,34 @@ Audit events form a hash chain using normalized event data plus the previous eve
 
 ### Identity and discovery
 
-- [ ] Missing API key is rejected with `IDENTITY_REQUIRED`.
-- [ ] Unknown API key is rejected with `IDENTITY_INVALID`.
-- [ ] `eng-a` discovers the two read tools and the approved-write capability defined by policy.
-- [ ] A fabricated or hidden tool name cannot bypass invocation authorization.
+- [x] Missing API key is rejected with `IDENTITY_REQUIRED`.
+- [x] Unknown API key is rejected with `IDENTITY_INVALID`.
+- [x] `eng-a` discovers the two read tools and the approved-write capability defined by policy.
+- [x] A fabricated or hidden tool name cannot bypass invocation authorization.
 
 ### Site authorization
 
-- [ ] `eng-a` reads `etch-101` successfully.
-- [ ] `eng-a` cannot read `etch-201` and receives `CROSS_SITE_ACCESS`.
-- [ ] Cross-site denial occurs before the telemetry server is called.
+- [x] `eng-a` reads `etch-101` successfully.
+- [x] `eng-a` cannot read `etch-201` and receives `CROSS_SITE_ACCESS`.
+- [x] Cross-site denial occurs before the telemetry server is called.
 
 ### Approval safety
 
-- [ ] Ticket creation without approval returns `APPROVAL_REQUIRED`.
-- [ ] Approval for `etch-101` cannot authorize `etch-201`.
-- [ ] Approval cannot authorize modified ticket arguments.
-- [ ] Expired approval returns `APPROVAL_EXPIRED`.
-- [ ] Successful ticket creation consumes approval.
-- [ ] Reusing consumed approval returns `APPROVAL_ALREADY_USED`.
-- [ ] Downstream failure does not consume approval.
+- [x] Ticket creation without approval returns `APPROVAL_REQUIRED`.
+- [x] Approval for `etch-101` cannot authorize `etch-201`.
+- [x] Approval cannot authorize modified ticket arguments.
+- [x] Expired approval returns `APPROVAL_EXPIRED`.
+- [x] Successful ticket creation consumes approval.
+- [x] Reusing consumed approval returns `APPROVAL_ALREADY_USED`.
+- [x] Downstream failure does not consume approval.
 
 ### Auditability
 
-- [ ] Every invocation attempt produces an audit event.
-- [ ] Audit events contain decision and reason code.
-- [ ] Audit events do not contain API keys.
-- [ ] Audit-chain verification passes for intact events.
-- [ ] Audit-chain verification fails after stored event mutation.
+- [x] Every invocation attempt produces an audit event.
+- [x] Audit events contain decision and reason code.
+- [x] Audit events do not contain API keys.
+- [x] Audit-chain verification passes for intact events.
+- [x] Audit-chain verification fails after stored event mutation.
 
 ## 8. Implementation slices
 
@@ -164,4 +164,3 @@ The MVP is complete when:
 - `docker compose up --build`, `make test`, and `make demo` work from a clean checkout.
 - The demo completes in under three minutes.
 - The README accurately describes implemented behavior and limitations.
-
