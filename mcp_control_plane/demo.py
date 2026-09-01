@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import sqlite3
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from contextlib import closing
 
 from mcp_control_plane.config import load_config
@@ -22,16 +23,18 @@ def _pass(label: str, condition: bool) -> None:
     print(f"PASS {label}")
 
 
-def _denied(label: str, code: str, action: Callable[[], object]) -> None:
+async def _denied(
+    label: str, code: str, action: Callable[[], Awaitable[object]]
+) -> None:
     try:
-        action()
+        await action()
     except ControlPlaneError as error:
         _pass(label, error.code == code)
         return
     raise RuntimeError(f"demo check failed: {label}")
 
 
-def run_demo() -> None:
+async def run_demo() -> None:
     config = load_config("config/demo.json")
     with closing(initialize_database(sqlite3.connect(":memory:"))) as database:
         tools = discover_tools(config, "demo-eng-key", database)
@@ -45,7 +48,7 @@ def run_demo() -> None:
             ),
         )
 
-        status = invoke_tool(
+        status = await invoke_tool(
             config,
             "demo-eng-key",
             "read_equipment_status",
@@ -54,7 +57,7 @@ def run_demo() -> None:
         )
         _pass("assigned-site read succeeds", status["equipment_id"] == "etch-101")
 
-        _denied(
+        await _denied(
             "cross-site read is denied",
             "CROSS_SITE_ACCESS",
             lambda: invoke_tool(
@@ -71,7 +74,7 @@ def run_demo() -> None:
             "idempotency_key": "demo-ticket-1",
             "reason": "Inspect elevated temperature",
         }
-        _denied(
+        await _denied(
             "write without approval is denied",
             "APPROVAL_REQUIRED",
             lambda: invoke_tool(
@@ -91,7 +94,7 @@ def run_demo() -> None:
             "create_maintenance_ticket",
             arguments,
         )
-        ticket = invoke_tool(
+        ticket = await invoke_tool(
             config,
             "demo-eng-key",
             "create_maintenance_ticket",
@@ -101,7 +104,7 @@ def run_demo() -> None:
         )
         _pass("exact approved write succeeds", ticket["ticket_id"] == "maint-001")
 
-        _denied(
+        await _denied(
             "consumed approval cannot be replayed",
             "APPROVAL_ALREADY_USED",
             lambda: invoke_tool(
@@ -117,4 +120,4 @@ def run_demo() -> None:
 
 
 if __name__ == "__main__":
-    run_demo()
+    asyncio.run(run_demo())

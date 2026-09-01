@@ -6,7 +6,7 @@ from mcp_control_plane.gateway import ControlPlaneError, discover_tools, invoke_
 from mcp_control_plane.storage import initialize_database, verify_audit_chain
 
 
-class AuditChainTest(unittest.TestCase):
+class AuditChainTest(unittest.IsolatedAsyncioTestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.config = load_config("config/demo.json")
@@ -17,8 +17,8 @@ class AuditChainTest(unittest.TestCase):
     def tearDown(self) -> None:
         self.database.close()
 
-    def test_invocation_attempts_record_decision_and_reason(self) -> None:
-        invoke_tool(
+    async def test_invocation_attempts_record_decision_and_reason(self) -> None:
+        await invoke_tool(
             self.config,
             "demo-eng-key",
             "read_equipment_status",
@@ -26,7 +26,7 @@ class AuditChainTest(unittest.TestCase):
             database=self.database,
         )
         with self.assertRaises(ControlPlaneError):
-            invoke_tool(
+            await invoke_tool(
                 self.config,
                 "demo-eng-key",
                 "read_equipment_status",

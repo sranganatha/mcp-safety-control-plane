@@ -8,15 +8,10 @@ import sqlite3
 from contextlib import closing
 from secrets import compare_digest, token_hex
 from time import time
-from typing import Callable
 
 from mcp_control_plane.config import DemoConfig, Principal
-from mcp_control_plane.maintenance_server import create_ticket
+from mcp_control_plane.downstream import call_maintenance_tool, call_telemetry_tool
 from mcp_control_plane.storage import connect_database, record_audit
-from mcp_control_plane.telemetry_server import (
-    list_active_alarms,
-    read_equipment_status,
-)
 
 
 TOOLS_BY_ROLE = {
@@ -32,11 +27,6 @@ ARGUMENTS_BY_TOOL = {
     "list_active_alarms": {"equipment_id"},
     "read_equipment_status": {"equipment_id"},
 }
-READ_TOOLS: dict[str, Callable[..., dict]] = {
-    "list_active_alarms": list_active_alarms,
-    "read_equipment_status": read_equipment_status,
-}
-WRITE_TOOL = create_ticket
 
 
 class ControlPlaneError(ValueError):
@@ -145,7 +135,7 @@ def approve_request(
     return approval_id
 
 
-def _invoke_approved_write(
+async def _invoke_approved_write(
     database: sqlite3.Connection,
     principal: Principal,
     tool_name: str,
@@ -176,11 +166,11 @@ def _invoke_approved_write(
     ):
         raise ControlPlaneError("APPROVAL_MISMATCH")
 
+    try:
+        ticket = await call_maintenance_tool(tool_name, arguments)
+    except Exception as error:
+        raise ControlPlaneError("DOWNSTREAM_FAILURE") from error
     with database:
-        try:
-            ticket = WRITE_TOOL(database, **arguments)
-        except Exception as error:
-            raise ControlPlaneError("DOWNSTREAM_FAILURE") from error
         consumed = database.execute(
             "UPDATE approvals SET used_at = ? WHERE approval_id = ? AND used_at IS NULL",
             (int(time()), approval_id),
@@ -190,7 +180,7 @@ def _invoke_approved_write(
     return ticket
 
 
-def invoke_tool(
+async def invoke_tool(
     config: DemoConfig,
     api_key: str | None,
     tool_name: str,
@@ -200,7 +190,9 @@ def invoke_tool(
 ) -> dict:
     if database is None:
         with closing(connect_database()) as opened:
-            return invoke_tool(config, api_key, tool_name, arguments, approval_id, opened)
+            return await invoke_tool(
+                config, api_key, tool_name, arguments, approval_id, opened
+            )
 
     principal = None
     audit_tool = tool_name if isinstance(tool_name, str) else None
@@ -212,12 +204,12 @@ def invoke_tool(
                 raise ControlPlaneError("APPROVAL_REQUIRED")
             if not isinstance(approval_id, str):
                 raise ControlPlaneError("APPROVAL_MISMATCH")
-            result = _invoke_approved_write(
+            result = await _invoke_approved_write(
                 database, principal, tool_name, validated, equipment.site, approval_id
             )
         else:
             try:
-                result = READ_TOOLS[tool_name](**validated)
+                result = await call_telemetry_tool(tool_name, validated)
             except Exception as error:
                 raise ControlPlaneError("DOWNSTREAM_FAILURE") from error
     except ControlPlaneError as error:

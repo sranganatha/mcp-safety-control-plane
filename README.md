@@ -6,7 +6,7 @@ A local reference implementation for governing discovery and invocation of state
 
 ## Status
 
-The local MVP is implemented: deterministic fixtures, downstream MCP servers, identity, filtered discovery, site authorization, exact one-time SQLite approvals, tamper-evident audit events, and a scripted security demo.
+The governed MCP server and downstream MCP client boundary are implemented. The current scripted demo still exercises the policy API directly; a full MCP-client end-to-end proof is the remaining course-correction slice.
 
 ## MVP
 
@@ -66,14 +66,15 @@ podman compose up --build
 `make test-container` builds and runs the full suite in Podman without using the host Python environment.
 The Compose command builds the same image and runs the end-to-end demo without persisting its SQLite database.
 
-The image contains two stdio MCP servers:
+The image contains one governed gateway and two downstream stdio MCP servers:
 
 ```bash
+python -m mcp_control_plane.gateway_server
 python -m mcp_control_plane.telemetry_server
 python -m mcp_control_plane.maintenance_server
 ```
 
-They expose exactly three tools: `read_equipment_status`, `list_active_alarms`, and `create_maintenance_ticket`. These downstream servers intentionally do not enforce access policy; the gateway will own that boundary.
+The gateway exposes exactly three filtered tools: `read_equipment_status`, `list_active_alarms`, and `create_maintenance_ticket`. It reauthorizes every call, then reaches the downstream servers through MCP stdio clients. The downstream servers intentionally do not enforce access policy; the gateway owns that boundary.
 
 ## End-to-end demo
 
@@ -90,6 +91,7 @@ It prints seven `PASS` lines covering filtered discovery, assigned-site access, 
 - [MVP specification](docs/mvp-spec.md)
 - [Repository rules](AGENTS.md)
 - [Audit hash-chain decision](docs/adr/0001-audit-hash-chain.md)
+- [MCP identity and transport decision](docs/adr/0002-mcp-identity-and-transport.md)
 
 Architecture, threat-model, and productionization documents will be added only when implementation creates concrete decisions to record.
 

@@ -38,7 +38,7 @@ Equipment-to-site ownership is trusted server-side data.
 
 ### Discovery
 
-1. Client supplies an API key.
+1. Client supplies a development API key in MCP request metadata.
 2. Gateway resolves the principal.
 3. Gateway evaluates each registered tool against the principal's role.
 4. Gateway returns only permitted tools.
